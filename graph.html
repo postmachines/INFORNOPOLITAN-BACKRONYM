@@ -1,0 +1,537 @@
+<head>
+    <style>
+        #info{
+            overflow-y: scroll;
+            visibility: hidden;
+            background: #EFF3F4;
+            position: absolute;
+            top: 0;
+            color: black;
+            text-align: left;
+        }
+
+        #bar{
+            padding-top: 2px;
+            /* box-shadow */
+            overflow-y: scroll;
+            visibility: hidden;
+            background: #041b3f;
+            position: absolute;
+            left: 0;
+            top: 0;
+            color: black;
+            text-align: left;
+        }
+
+        #close{
+            visibility: hidden;
+            width: 30px;
+            height: 20px;
+            background: #EFF3F4; 
+            position: absolute;
+            top: 0;
+            color: black;
+            text-align: center;
+        }
+
+        .usingFor{
+            margin:0;
+            /* border-color:black; */
+            /* border-style: solid; */
+            border: 1px solid black;
+    		border-radius: 10px;
+            /* border:3px; */
+            /* background-color: #a6cee3; */
+            background: #a6cee3;
+
+        	padding: 4px 4px 4px 4px;
+            /* color: white; */
+            display: inline-block;
+            cursor: pointer; 
+        }
+
+        .switch{
+            visibility: visible;
+            width: 120px;
+            height: 20px;
+            /* background: #232A3D; */
+    		border-radius: 100px;
+            position: absolute;
+            top: 20;
+            color: black;
+            text-align: center;
+        }
+
+        .active_switch{
+            background: #227AB5;
+        }
+        .inactive_switch{
+            background: rgb(68, 73, 84);
+        }
+
+        body{
+            margin: 0;
+        }
+
+        p{
+            padding: 10px 0px 0px 10px;
+             color: black; 
+        }
+        h1{
+            padding: 10px 0px 0px 10px;
+            text-align: center;
+        }
+    </style>
+     <script src="three.js"></script>
+     <script src="three-spritetext.min.js"></script>
+     <!--<script src="//unpkg.com/3d-force-graph"></script>-->
+     <script src="3d-force-graph.js"></script>
+</head>
+
+<body>
+
+    <div id="3d-graph"></div>
+    <div id="info"></div>
+    <div id="bar"></div>
+    <div id="switch_a" class='switch' style="cursor: pointer"></div>
+    <div id="switch_d" class='switch' style="cursor: pointer"></div>
+    <div id="close" style="cursor: pointer">X</div>
+
+    <script>
+            //DATA_URL = 'http://backronym.xyz/data.json';
+            DATA_URL = 'data.json';
+
+            colored_nodes = [];
+
+            //link colors
+            TYPE_A_COLOR = '#555555';
+            TYPE_B_COLOR = 'gold';
+
+            const elem = document.getElementById('3d-graph');
+            let Graph = ForceGraph3D()(elem);
+            
+            SUB_GRAPH_SHOWN = false;
+            var visibleType = "a";
+            var counter = 0;
+
+            all_nodes = []
+            all_links = []
+
+            info_div = document.getElementById("info");
+            bar_div = document.getElementById("bar");
+            close_button = document.getElementById("close");
+
+            function create_button(id, text) {
+                ret_button = document.getElementById(id);
+                ret_button.innerHTML = "<b>" + text + "</b>";
+                ret_button.className = 'switch inactive_switch';
+                return ret_button;
+            }
+
+            button_a = create_button('switch_a', 'Based on');
+            //button_b = create_button('switch_b', 'Using for');
+            //button_c = create_button('switch_c', 'All links');
+            button_d = create_button('switch_d', 'Show/Hide Bar');
+
+            button_a.className = 'switch active_switch';
+
+
+            function in_(a, arr) {
+                for (var i = 0; i < arr.length; i++) {
+                    if (arr[i] == a)
+                        return true;
+                }
+                return false;
+            }
+
+            function create_sprite(node) {
+                const obj = new THREE.Mesh(
+                    new THREE.SphereGeometry(5),
+                    new THREE.MeshBasicMaterial({
+                        depthWrite: false,
+                        transparent: true,
+                        opacity: 0
+                    })
+                );
+
+                // add text sprite as child
+                const sprite = new SpriteText(node.id);
+                sprite.color = node.color;
+                if (in_(node, colored_nodes))
+                    sprite.color = 'red';
+                sprite.textHeight = 5;
+                obj.add(sprite);
+                return obj;
+            }
+
+
+            function sizing() {
+                INFO_WIDTH = document.body.clientWidth * .33;
+                info_div.style.width = INFO_WIDTH;
+                info_div.style.left = document.body.clientWidth - INFO_WIDTH;
+                info_div.style.height = document.body.clientHeight;
+                //replace with algebra
+                close_button.style.left = document.body.clientWidth - 46;
+                button_d.style.left = (document.body.clientWidth / 2) - 180;
+                button_a.style.left = (document.body.clientWidth / 2) - 58;
+                //button_b.style.left = (document.body.clientWidth / 2) - 100;
+                //button_c.style.left = (document.body.clientWidth / 2) + 63;
+                bar_div.style.height = document.body.clientHeight;
+                bar_div.style.width = document.body.clientWidth / 5;
+            }
+
+            sizing();
+
+            close_button.onclick = function () {
+                current_pos = Graph.cameraPosition();
+                cur_x = current_pos.x;
+                cur_y = current_pos.y;
+                cur_z = current_pos.z;
+
+
+                Graph.cameraPosition({
+                    x: cur_x,
+                    y: cur_y,
+                    z: cur_z
+                }, {
+                    x: 0,
+                    y: 0,
+                    z: 0
+                });
+                //for all elements sharing the state, hide them
+                info_div.style.visibility = 'hidden';
+                close_button.style.visibility = 'hidden';
+                if (visibleType == 'c') Graph.linkVisibility(true);
+                else {
+                    Graph.linkVisibility(function (l) {
+                        if (l.type == visibleType) {
+                            return true;
+                        } else return false;
+                    });
+                }
+            }
+            
+            button_a.onclick = function () {
+                //Based on button
+                colored_nodes = [];
+                if (SUB_GRAPH_SHOWN) {
+                    Graph.graphData({
+                        'nodes': all_nodes,
+                        'links': all_links
+                    })
+                }
+                Graph.nodeThreeObject(create_sprite)
+                SUB_GRAPH_SHOWN = false;
+                visibleType = "a";
+                button_a.className = 'switch active_switch';
+                //button_b.className = 'switch inactive_switch';
+                //button_c.className = 'switch inactive_switch';
+
+                Graph.linkVisibility(function (l) {
+                    if (l.type == visibleType) {
+                        return true;
+                    } else return false;
+                });
+            }
+
+            /*button_b.onclick = function () {
+                //Using for button
+                colored_nodes = [];
+                if (SUB_GRAPH_SHOWN) {
+                    Graph.graphData({
+                        'nodes': all_nodes,
+                        'links': all_links
+                    })
+                }
+                Graph.nodeThreeObject(create_sprite)
+
+                SUB_GRAPH_SHOWN = false;
+                visibleType = "b";
+                button_b.className = 'switch active_switch';
+                button_a.className = 'switch  inactive_switch';
+                //button_c.className = 'switch  inactive_switch';
+                if (counter == 0) {
+                    using_for();
+                    counter++;
+                } else {}
+                Graph.linkVisibility(function (l) {
+                    if (l.type == visibleType) {
+                        return true;
+                    } else return false;
+                });
+            }
+
+            button_c.onclick = function () {
+                //all link button
+                colored_nodes = [];
+                if (SUB_GRAPH_SHOWN) {
+                    Graph.graphData({
+                        'nodes': all_nodes,
+                        'links': all_links
+                    });
+                }
+
+                Graph.nodeThreeObject(create_sprite)
+
+                SUB_GRAPH_SHOWN = false;
+                visibleType = "c";
+                button_c.className = 'switch active_switch';
+                button_a.className = 'switch  inactive_switch';
+                button_b.className = 'switch  inactive_switch';
+                // bar_div.style.visibility = 'hidden';
+                Graph.linkVisibility(true);
+            }*/
+
+            button_d.onclick = function () {
+                //show and hide bar button
+                if (all_nodes.length == 0) {
+                    all_nodes = Graph.graphData().nodes;
+                    all_links = Graph.graphData().links;
+                }
+
+                visib = bar_div.style.visibility;
+                if (visib == 'hidden' || visib == '') {
+                    if (counter == 0) {
+                        using_for();
+                        counter++;
+                    }
+                    bar_div.style.visibility = 'visible';
+                    button_d.className = 'switch active_switch';
+
+                } else {
+                    if (visib == 'visible') {
+                        button_d.className = 'switch inactive_switch';
+                        bar_div.style.visibility = 'hidden';
+                    }
+                }
+            }
+
+            //resizing logic
+            window.onresize = function () {
+                Graph
+                    .width(document.body.clientWidth)
+                    .height(document.body.clientHeight)
+                sizing();
+            }
+
+            current_active_using_for = null;
+            dict = Graph.graphData()['dict'];
+
+            function using_for() {
+                nodes = Graph.graphData().nodes;
+                using_for_values = [];
+                dict = Graph.graphData()['dict'];
+
+                len = Object.keys(dict).length
+                for (var i = 0; i < len; i++) {
+                    using_for_values[i] = document.createElement("p");
+                    using_for_values[i].className = "usingFor inactive_switch";
+                    values_count = dict[Object.keys(dict)[i]].length;
+                    using_for_values[i].innerHTML = Object.keys(dict)[i] + '(' + values_count + ')'
+
+                    using_for_values[i].onclick = function (e) {
+                        SUB_GRAPH_SHOWN = true;
+                        button_a.className = 'switch inactive_switch';
+                        //button_b.className = 'switch inactive_switch';
+                        //button_c.className = 'switch inactive_switch';
+
+                        if (current_active_using_for)
+                            current_active_using_for.className = 'usingFor inactive_switch';
+
+                        e.target.className = 'usingFor active_switch';
+                        current_active_using_for = e.target;
+
+                        p_text = e.target.innerHTML;
+                        paren_index = p_text.indexOf('(');
+                        correct_key = p_text.substr(0, paren_index);
+
+                        interested_nodes_ids = dict[correct_key];
+
+                        interested_nodes = [];
+                        for (var q = 0; q < interested_nodes_ids.length; q++) {
+                            for (var z = 0; z < nodes.length; z++) {
+
+                                if (interested_nodes_ids[q] == nodes[z]['id']) {
+                                    interested_nodes.push(nodes[z]);
+                                }
+                            }
+                        }
+
+                        interested_links = []
+
+                        for (var b = 0; b < all_links.length; b++) {
+                            for (var c = 0; c < interested_nodes.length; c++) {
+                                l = all_links[b];
+                                if (l.source == interested_nodes[c] || l.target == interested_nodes[c]) {
+                                    if (l.type == 'a'){
+                                        if (!in_(l,interested_links))
+                                            interested_links.push(l);
+                                    }
+                                }
+                            }
+                        }
+
+                        // for all interested links if l.src or l.target not in interested nodes: save that node in an array, and then color it with red, and undo the change on state change
+                        colored_nodes = []
+                        for (var b = 0; b < interested_links.length; b++) {
+                            // if l.src not in interested node 
+                            l = interested_links[b];
+                            src = l.source;
+                            tar = l.target;
+                            if (!in_(src, interested_nodes)) {
+                                colored_nodes.push(src);
+                            }
+
+                            if (!in_(tar, interested_nodes) && !in_(tar, colored_nodes)) {
+                                colored_nodes.push(tar);
+                            }
+                        }
+
+                        Graph = function(Graph) {
+                            Graph.pauseAnimation();
+                            Graph = ForceGraph3D()(elem);
+                            Graph
+                            .onNodeHover(onNodeHoverFunc)
+                            .onNodeClick(onNodeClickFunc)
+                            .cooldownTicks(200)
+                            .nodeResolution(1)
+                            .linkResolution(1)
+                            .nodeLabel('id')
+                            .nodeAutoColorBy('group')
+                            .enableNodeDrag(false)
+                            .backgroundColor('black') 
+                            /*.linkDirectionalArrowLength(3.5)
+                            .linkDirectionalArrowRelPos(.75)*/
+                            .linkWidth('1px')
+                            .linkOpacity(1)
+                            .linkColor(function (l) {
+                                if (l.type == 'a') {
+                                    return TYPE_A_COLOR;
+                                } else {
+                                    return TYPE_B_COLOR;
+                                }
+                            })
+                            .graphData({
+                            'nodes': interested_nodes.concat(colored_nodes),
+                            'links': interested_links
+                            })
+                            return Graph;
+                        }(Graph);
+                        Graph.linkVisibility(function (l) {
+                            if (l.source && l.target)
+                                return true;
+                            else return false;
+                        })
+
+                        Graph.nodeThreeObject(create_sprite)
+
+                        node = interested_nodes[0];
+                        const distance = 150;
+                        const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z);
+                        
+                        Graph.cameraPosition({
+                                x: node.x * distRatio,
+                                y: node.y * distRatio,
+                                z: node.z * distRatio
+                            }, // new position
+                            { x: node.x, y: node.y, z: node.z}, // lookAt ({ x, y, z })
+                            3000 // ms transition duration
+                        );
+                    }
+                }
+                using_for_values.sort(function (a, b) {
+                    t = a.innerText;
+                    q = b.innerText;
+
+                    a_count = t.substr(t.indexOf('('), t.length); // a string like (0)
+                    b_count = q.substr(q.indexOf('('), q.length); // a string like (122)
+
+                    a_count = a_count.substr(1, a_count.length - 2);
+                    b_count = b_count.substr(1, b_count.length - 2);
+
+                    //sorts descdnding, to sort ascending use a_count - b_count
+                    return b_count - a_count;
+                })
+                for (var i = 0; i < using_for_values.length; i++)
+                    bar_div.appendChild(using_for_values[i]);
+            }
+
+            const onNodeHoverFunc = node => elem.style.cursor = node ? 'pointer' : null;
+            const onNodeClickFunc = node => {
+                bar_div.style.visibility = 'hidden';
+                button_d.className = 'switch inactive_switch';
+                Graph.linkVisibility(function (l) {
+                    if (l.type == 'a' && (l.source == node || l.target == node)) 
+                        return true;
+                    return false
+                })
+
+                // Aim at node from outside it
+                const distance = 150;
+                const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z);
+                Graph.cameraPosition({
+                        x: node.x * distRatio,
+                        y: node.y * distRatio,
+                        z: node.z * distRatio
+                    }, // new position
+                    node, // lookAt ({ x, y, z })
+                    3000 // ms transition duration
+                );
+
+                while (info_div.firstChild) info_div.removeChild(info_div.firstChild);
+                title_p = document.createElement('h1');
+                title_p.innerHTML = node['id'];
+                info_div.appendChild(title_p);
+
+                info_div.style.visibility = 'visible';
+                close_button.style.visibility = 'visible';
+
+                for (var property in node) {
+                    if (node.hasOwnProperty(property)) {
+                        if (property == 'color') {
+                            break;
+                        }
+                        if (property == 'Comparable method') continue;
+                        t = document.createElement('p');
+                        t.innerHTML = '<b>' + property + ':</b> ' + node[property];
+                        info_div.appendChild(t);
+                    }
+                }
+
+            };
+
+            Graph.d3Force('charge').strength(-30);
+            Graph
+                .cooldownTicks(200)
+                .nodeResolution(1)
+                .linkResolution(1)
+                .nodeLabel('id')
+                .nodeAutoColorBy('group')
+                .enableNodeDrag(false)
+                .backgroundColor('black') 
+                .linkColor(function (l) {
+                    if (l.type == 'a') {
+                        return TYPE_A_COLOR;
+                    } else {
+                        return TYPE_B_COLOR;
+                    }
+                })
+                /*.linkDirectionalArrowLength(3.5)
+                .linkDirectionalArrowRelPos(.75)*/
+                .linkWidth('1px')
+                .linkOpacity(1)
+                .cameraPosition({
+                    z: 700
+                })
+                .jsonUrl(DATA_URL)
+                .linkVisibility(function (l) {
+                    if (l.type == visibleType) {
+                        return true;
+                    } else return false;
+                })
+                .onNodeHover(onNodeHoverFunc)
+                .onNodeClick(onNodeClickFunc)
+                .nodeThreeObject(create_sprite);
+
+    </script>
+</body>
